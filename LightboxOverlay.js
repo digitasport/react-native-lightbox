@@ -1,6 +1,7 @@
 import React, { Component } from 'react';
 import PropTypes from 'prop-types';
 import { Animated, Dimensions, Modal, PanResponder, Platform, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Orientation from 'react-native-orientation-locker';
 
 const WINDOW_HEIGHT = Dimensions.get('window').height;
 const WINDOW_WIDTH = Dimensions.get('window').width;
@@ -25,8 +26,9 @@ const styles = StyleSheet.create({
   },
   header: {
     position: 'absolute',
-    top: 0,
-    left: 0,
+    top: 10,
+    // left: -10,
+    right: 10,
     width: WINDOW_WIDTH,
     backgroundColor: 'transparent',
   },
@@ -49,22 +51,22 @@ const styles = StyleSheet.create({
 export default class LightboxOverlay extends Component {
   static propTypes = {
     origin: PropTypes.shape({
-      x:        PropTypes.number,
-      y:        PropTypes.number,
-      width:    PropTypes.number,
-      height:   PropTypes.number,
+      x: PropTypes.number,
+      y: PropTypes.number,
+      width: PropTypes.number,
+      height: PropTypes.number,
     }),
     springConfig: PropTypes.shape({
-      tension:  PropTypes.number,
+      tension: PropTypes.number,
       friction: PropTypes.number,
     }),
     backgroundColor: PropTypes.string,
-    isOpen:          PropTypes.bool,
-    renderHeader:    PropTypes.func,
-    onOpen:          PropTypes.func,
-    onClose:         PropTypes.func,
-    willClose:         PropTypes.func,
-    swipeToDismiss:  PropTypes.bool,
+    isOpen: PropTypes.bool,
+    renderHeader: PropTypes.func,
+    onOpen: PropTypes.func,
+    onClose: PropTypes.func,
+    willClose: PropTypes.func,
+    swipeToDismiss: PropTypes.bool,
   };
 
   static defaultProps = {
@@ -84,7 +86,9 @@ export default class LightboxOverlay extends Component {
       },
       pan: new Animated.Value(0),
       openVal: new Animated.Value(0),
+      orientation: 'PORTRAIT'
     };
+
     this._panResponder = PanResponder.create({
       // Ask to be the responder:
       onStartShouldSetPanResponder: (evt, gestureState) => !this.state.isAnimating,
@@ -102,7 +106,7 @@ export default class LightboxOverlay extends Component {
       ]),
       onPanResponderTerminationRequest: (evt, gestureState) => true,
       onPanResponderRelease: (evt, gestureState) => {
-        if(Math.abs(gestureState.dy) > DRAG_DISMISS_THRESHOLD) {
+        if (Math.abs(gestureState.dy) > DRAG_DISMISS_THRESHOLD) {
           this.setState({
             isPanning: false,
             target: {
@@ -122,14 +126,30 @@ export default class LightboxOverlay extends Component {
     });
   }
 
+  fullscreen = (orientation) => {
+    if (orientation === 'LANDSCAPE-LEFT' || orientation === 'LANDSCAPE-RIGHT') {
+      this.setState({
+        orientation: orientation,
+      });
+    } else if (orientation === 'PORTRAIT') {
+      this.setState({
+        orientation: orientation,
+      });
+    }
+  };
+
   componentDidMount() {
-    if(this.props.isOpen) {
+    if (this.props.isOpen) {
       this.open();
     }
+
+    Orientation.addOrientationListener(this.fullscreen);
   }
 
   open = () => {
-    if(isIOS) {
+    Orientation.getDeviceOrientation(orientation => this.fullscreen(orientation));
+
+    if (isIOS) {
       StatusBar.setHidden(true, 'fade');
     }
     this.state.pan.setValue(0);
@@ -153,7 +173,7 @@ export default class LightboxOverlay extends Component {
 
   close = () => {
     this.props.willClose();
-    if(isIOS) {
+    if (isIOS) {
       StatusBar.setHidden(false, 'fade');
     }
     this.setState({
@@ -171,7 +191,7 @@ export default class LightboxOverlay extends Component {
   }
 
   componentDidUpdate(prevProps) {
-    if(this.props.isOpen !== prevProps.isOpen && this.props.isOpen) {
+    if (this.props.isOpen !== prevProps.isOpen && this.props.isOpen) {
       this.open();
     }
   }
@@ -193,27 +213,27 @@ export default class LightboxOverlay extends Component {
     } = this.state;
 
     const lightboxOpacityStyle = {
-      opacity: openVal.interpolate({inputRange: [0, 1], outputRange: [0, target.opacity]})
+      opacity: openVal.interpolate({ inputRange: [0, 1], outputRange: [0, target.opacity] })
     };
 
     let handlers;
-    if(swipeToDismiss) {
+    if (swipeToDismiss) {
       handlers = this._panResponder.panHandlers;
     }
 
     let dragStyle;
-    if(isPanning) {
+    if (isPanning) {
       dragStyle = {
         top: this.state.pan,
       };
-      lightboxOpacityStyle.opacity = this.state.pan.interpolate({inputRange: [-WINDOW_HEIGHT, 0, WINDOW_HEIGHT], outputRange: [0, 1, 0]});
+      lightboxOpacityStyle.opacity = this.state.pan.interpolate({ inputRange: [-WINDOW_HEIGHT, 0, WINDOW_HEIGHT], outputRange: [0, 1, 0] });
     }
 
     const openStyle = [styles.open, {
-      left:   openVal.interpolate({inputRange: [0, 1], outputRange: [origin.x, target.x]}),
-      top:    openVal.interpolate({inputRange: [0, 1], outputRange: [origin.y + STATUS_BAR_OFFSET, target.y + STATUS_BAR_OFFSET]}),
-      width:  openVal.interpolate({inputRange: [0, 1], outputRange: [origin.width, WINDOW_WIDTH]}),
-      height: openVal.interpolate({inputRange: [0, 1], outputRange: [origin.height, WINDOW_HEIGHT]}),
+      left: openVal.interpolate({ inputRange: [0, 1], outputRange: [origin.x, target.x] }),
+      top: openVal.interpolate({ inputRange: [0, 1], outputRange: [origin.y + STATUS_BAR_OFFSET, target.y + STATUS_BAR_OFFSET] }),
+      width: openVal.interpolate({ inputRange: [0, 1], outputRange: [origin.width, WINDOW_WIDTH] }),
+      height: this.state.orientation === 'PORTRAIT' ? this.state.openVal.interpolate({ inputRange: [0, 1], outputRange: [this.props.origin.height, WINDOW_HEIGHT] }) : null,
     }];
 
     const background = (<Animated.View style={[styles.background, { backgroundColor: backgroundColor }, lightboxOpacityStyle]}></Animated.View>);
@@ -242,7 +262,11 @@ export default class LightboxOverlay extends Component {
     }
 
     return (
-      <Modal visible={isOpen} transparent={true} onRequestClose={() => this.close()}>
+      <Modal
+        supportedOrientations={['portrait', 'landscape']} style={{
+          justifyContent: "center",
+          alignItems: "center"
+        }} visible={isOpen} transparent={true} onRequestClose={() => this.close()}>
         {background}
         {content}
         {header}
